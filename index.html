@@ -215,6 +215,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .para b{color:var(--blue)}
 .err{color:var(--red);font-weight:700;min-height:22px}
 
+.ans{width:100%;font-family:inherit;font-size:22px;font-weight:600;padding:14px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+details.txt summary{list-style:revert}
 .name input{width:100%;font-family:inherit;font-size:26px;font-weight:700;padding:14px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);text-align:center}
 .voices{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .voices button{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:12px;text-align:left;font-size:15px}
@@ -237,20 +239,20 @@ const SB_URL = 'https://srhqqovedripajxzaovk.supabase.co/rest/v1';
 const SB_KEY = 'sb_publishable_x9PxEbB9zwxoFKRVHMgpSA_lqjbRcNv';
 const store = { get(k) { try { return JSON.parse(localStorage.getItem('dds2_' + k)) } catch (e) { return null } }, set(k, v) { try { localStorage.setItem('dds2_' + k, JSON.stringify(v)) } catch (e) {} } };
 let device = store.get('device'); if (!device) { device = Math.random().toString(36).slice(2, 10); store.set('device', device); }
-let queue = store.get('queue') || { reponses: [], parties: [] };
+let queue = store.get('queue') || { reponses: [], parties: [] }; queue.audio = queue.audio || [];
 let sending = false;
 async function flush() {
   if (sending) return; sending = true;
   try {
-    for (const table of ['reponses', 'parties']) {
+    for (const table of ['audio', 'reponses', 'parties']) {
       if (!queue[table].length) continue;
-      const batch = queue[table].slice(0, 200);
+      const batch = queue[table].slice(0, table === 'audio' ? 1 : 200);
       const r = await fetch(`${SB_URL}/dds_${table}`, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(batch) });
       if (r.ok) { queue[table] = queue[table].slice(batch.length); store.set('queue', queue); }
     }
   } catch (e) {} finally { sending = false; const s = document.getElementById('sync'); if (s) s.textContent = syncTxt(); }
 }
-const syncTxt = () => { const n = queue.reponses.length + queue.parties.length; return n ? `${n} réponse(s) en attente d’envoi (pas de réseau ?)` : 'Tes réponses sont envoyées au formateur.'; };
+const syncTxt = () => { const n = queue.reponses.length + queue.parties.length + queue.audio.length; return n ? `${n} réponse(s) en attente d’envoi (pas de réseau ?)` : 'Tes réponses sont envoyées au formateur.'; };
 setInterval(flush, 15000); window.addEventListener('online', flush);
 const S = { name: store.get('name'), level: null, theme: null, game: null, gameId: null, session: null, start: 0 };
 const cut = (s, n) => String(s ?? '').slice(0, n);
@@ -301,13 +303,14 @@ function begin(themeId, g) { S.theme = themeId; S.game = g.name; S.gameId = g.id
 const keyOf = (themeId, gid) => S.level + '_' + themeId + '_' + gid;
 
 // ================= le moteur : UNE réponse par question, puis on passe à la suivante =================
-let timer = null;
+let timer = null, runId = 0;
 function pic(img, count) { return $(`<div class="ph"><img alt="" src="${img}">${count ? `<span class="count">${count}</span>` : ''}</div>`); }
 function runSeries(items, build, back) {
-  let i = 0, good = 0; const errs = [];
+  let i = 0, good = 0, prods = 0; const errs = []; const my = ++runId;
   const next = () => {
+    if (my !== runId) return;
     clearTimeout(timer);
-    if (i >= items.length) return endScreen(items.length, good, errs, back);
+    if (i >= items.length) return endScreen(items.length, good, errs, back, prods);
     app.innerHTML = '';
     app.append(topbar(S.game, back));
     app.append($(`<div class="bar"><i style="width:${Math.round(i / items.length * 100)}%"></i></div>`));
@@ -319,9 +322,11 @@ function runSeries(items, build, back) {
         if (done) return; done = true;
         g.classList.add('locked');
         logAnswer(q, r, a, ok);
-        if (ok) good++; else errs.push({ q: plain(q), a: right || a });
-        const wait = ok ? 1500 : 3200;
-        const f = $(`<div class="fb ${ok ? 'ok' : 'no'}"><div class="m">${ok ? '✓ Bravo !' : '✗ Non.'}${right ? `<small>${ok ? '' : 'La bonne réponse : '}${right}</small>` : ''}</div><button class="nx">Suivant ›</button><i class="tm" style="animation-duration:${wait}ms"></i></div>`);
+        const neutral = ok === null;
+        if (neutral) prods++; else if (ok) good++; else errs.push({ q: plain(q), a: right || a });
+        const wait = neutral ? 2000 : ok ? 1500 : 3200;
+        const head = neutral ? '✓ Envoyé à ton formateur.' : ok ? '✓ Bravo !' : '✗ Non.';
+        const f = $(`<div class="fb ${ok === false ? 'no' : 'ok'}"><div class="m">${head}${right ? `<small>${ok === false ? 'La bonne réponse : ' : ''}${right}</small>` : ''}</div><button class="nx">Suivant ›</button><i class="tm" style="animation-duration:${wait}ms"></i></div>`);
         f.querySelector('.nx').onclick = () => { i++; next(); };
         (g.querySelector('.side') || g).append(f);
         if (say) speak(say);
@@ -342,8 +347,10 @@ function gcard(media, askTxt, sayTxt) {
   if (askTxt) { const a = $(`<div class="ask"><p>${askTxt}</p></div>`); if (sayTxt) a.append(sayBtn(sayTxt)); side.append(a); }
   g.append(side); return { g, side };
 }
-function endScreen(total, good, errs, back) {
-  clearTimeout(timer);
+function endScreen(total, good, errs, back, prods) {
+  clearTimeout(timer); stopMic();
+  if (prods && prods === total) return prodDone(total, back);
+  total -= prods || 0;
   const ratio = good / total; const s = ratio === 1 ? 3 : ratio >= .7 ? 2 : 1;
   const key = keyOf(S.theme, S.gameId); if (s > (store.get(key) || 0)) store.set(key, s);
   logGame(good, total, total - good, s);
@@ -355,6 +362,12 @@ function endScreen(total, good, errs, back) {
   t.children[1].onclick = back; e.append(t);
   e.append($(`<p class="sync" id="sync">${syncTxt()}</p>`));
   app.append(e); speak(s === 3 ? 'Bravo !' : 'Très bien !');
+}
+function prodDone(total, back) {
+  const key = keyOf(S.theme, S.gameId); store.set(key, 3); logGame(total, total, 0, 3);
+  app.innerHTML = ''; app.append(topbar(S.game, back));
+  const e = $(`<div class="card end narrow"><div class="st">★★★</div><h2>C’est envoyé !</h2><p class="sc">Ton formateur va ${S.gameId === 'oral' ? 'écouter' : 'lire'} tes réponses et te corriger.</p><div class="tools"><button class="btn pri">Autres activités</button></div><p class="sync" id="sync">${syncTxt()}</p></div>`);
+  e.querySelector('button').onclick = back; app.append(e); speak('Bravo ! C’est envoyé.');
 }
 // marque la réponse choisie et la bonne réponse
 function mark(list, chosen, isRight) { list.forEach(b => { if (isRight(b)) b.classList.add('is-ok'); else if (b === chosen) b.classList.add('is-no'); else b.classList.add('dim'); }); }
@@ -385,15 +398,18 @@ const ACT = {
   lecture: { name: 'Je lis le texte', hint: 'Un texte court et des questions' },
   lucia: { name: 'Je remplis la fiche de Lucia', hint: 'Je lis le texte et je complète' },
   moi: { name: 'Ma présentation', hint: 'Je remplis ma fiche, j’envoie mon texte' },
+  fiche2: { name: 'J’écris la réponse', hint: 'Je lis la fiche, j’écris au clavier' },
+  ecrit: { name: 'J’écris (production écrite)', hint: 'J’écris mon texte, le formateur corrige' },
+  oral: { name: 'Je réponds à l’oral', hint: 'J’écoute la question, je réponds au micro' },
   s1: { name: 'Où est la souris ?', hint: 'sur, sous, dans, à côté de' },
   s2: { name: 'Où est la souris ? (difficile)', hint: 'devant, derrière, entre' },
   s3: { name: 'J’écoute et je touche la souris', hint: 'Seulement le son' },
 };
 function actList(level, themeId) {
   if (themeId === 'souris') return level === 'A1' ? ['s1'] : ['s2', 's3'];
-  if (themeId === 'presentation') return level === 'A1' ? ['quiz', 'ecoute', 'qr', 'fiche', 'age', 'ordre'] : ['gram', 'nat', 'phrase', 'lecture', 'lucia', 'moi'];
-  if (level === 'A1') return ['quiz', 'ecoute', 'article', ...(themeId === 'metiers' ? ['ilelle'] : []), 'ordre', 'manque', 'compte', 'eclair'];
-  return ['cache', 'sac', 'meles', 'fleches', 'gram', ...(themeId === 'metiers' ? ['ou'] : []), 'phrase', 'vf', 'lecture'];
+  if (themeId === 'presentation') return level === 'A1' ? ['quiz', 'ecoute', 'qr', 'fiche', 'fiche2', 'age', 'ordre', 'ecrit', 'oral'] : ['gram', 'nat', 'phrase', 'lecture', 'lucia', 'moi', 'ecrit', 'oral'];
+  if (level === 'A1') return ['quiz', 'ecoute', 'article', ...(themeId === 'metiers' ? ['ilelle'] : []), 'ordre', 'manque', 'compte', 'eclair', 'ecrit', 'oral'];
+  return ['cache', 'sac', 'meles', 'fleches', 'gram', ...(themeId === 'metiers' ? ['ou'] : []), 'phrase', 'vf', 'lecture', 'ecrit', 'oral'];
 }
 const THEMES = () => [...WORDS.map(t => ({ id: t.id, name: t.name, img: t.words[0].img, t })), { id: 'souris', name: 'Où est la souris ?', svg: true }];
 function themeStars(level, id) { const L = actList(level, id); const n = L.filter(g => (store.get(level + '_' + id + '_' + g) || 0) > 0).length; return [n, L.length]; }
@@ -446,7 +462,7 @@ function themesScreen(level) {
   app.append(g);
 }
 function gamesScreen(themeId) {
-  clearTimeout(timer); try { speechSynthesis.cancel(); } catch (e) {}
+  clearTimeout(timer); runId++; stopMic(); try { speechSynthesis.cancel(); } catch (e) {}
   const th = THEMES().find(x => x.id === themeId); S.theme = themeId;
   app.innerHTML = ''; app.append(topbar(`${th.name} <span class="lvtag ${S.level}">${S.level}</span>`, () => themesScreen(S.level)));
   const L = $('<div class="levels narrow" style="max-width:720px"></div>');
@@ -458,7 +474,7 @@ function gamesScreen(themeId) {
   app.append(L);
 }
 const backList = () => gamesScreen(S.theme);
-function startGame(id) { const t = TH(S.theme); PLAY[id](t); }
+function startGame(id) { clearTimeout(timer); runId++; stopMic(); const t = TH(S.theme); PLAY[id](t); }
 
 // ================= A1 =================
 const pick = (t, n, f) => shuffle(t.words.filter(f || (() => true))).slice(0, n);
@@ -971,10 +987,114 @@ function gSouris(id) {
   }, backList);
 }
 
+// ================= J'écris la réponse (fiche, au clavier, une seule fois) =================
+const STOP = new Set(['il', 'elle', 'est', 'a', 'ans', 'an', 'non', 'oui', 'le', 'la', 'les', 'l', 'de', 'd', 'a', 'au', 'en', 'c', 'son', 'sa', 'elle', 's', 'appelle', 'est', 'il']);
+const NUMW = { zero: '0', un: '1', une: '1', deux: '2', trois: '3', quatre: '4', cinq: '5', six: '6', sept: '7', huit: '8', neuf: '9', dix: '10' };
+const toks = (x) => norm(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).map(w => NUMW[w] || w);
+function typedOK(typed, answer) { const T = new Set(toks(typed)); const K = toks(answer).filter(w => !STOP.has(w)); return K.length > 0 && K.every(w => T.has(w)); }
+function gFiche2() {
+  const items = FICHES.flatMap(F => F.q.map(q => ({ F, ...q })));
+  runSeries(items, (it, ctx) => {
+    const media = $('<div></div>'); media.append($(`<p class="note" style="text-align:left;margin:0 0 8px">${ctx.count} · Je lis la fiche.</p>`), $(ficheHTML(it.F.champs, it.F.photo === 'f')));
+    const { g, side } = gcard(media, it.q, it.q);
+    const f = $('<form class="act" style="display:flex;flex-direction:column;gap:10px" autocomplete="off"><input class="ans" enterkeyhint="done" autocapitalize="off" spellcheck="false" placeholder="J’écris ma réponse ici"><button class="btn pri wide">Valider (une seule fois)</button></form>');
+    const inp = f.querySelector('input');
+    f.onsubmit = (e) => { e.preventDefault(); const v = inp.value.trim(); if (!v) { inp.style.animation = 'shake .35s'; setTimeout(() => inp.style.animation = '', 400); return; }
+      inp.readOnly = true; const ok = typedOK(v, it.a); inp.classList.add(ok ? 'is-ok' : 'is-no');
+      ctx.answer(ok, { q: 'Fiche (écrit) : ' + it.q, r: v, a: it.a, right: it.a }); };
+    side.append(f); setTimeout(() => inp.focus({ preventScroll: true }), 150); return g;
+  }, backList);
+}
+
+// ================= Production écrite (le formateur corrige) =================
+function gEcrit() {
+  const P = PROD[S.theme][S.level]; const dk = 'brouillon_' + S.level + '_' + S.theme; const draft = store.get(dk) || {};
+  app.innerHTML = ''; app.append(topbar(S.game, backList));
+  const c = $(`<div class="card narrow form"><p style="margin:0;font-weight:700;font-size:19px">${P.consigne}</p></div>`);
+  const mod = $(`<details class="txt" style="max-height:none"><summary style="font-weight:700;cursor:pointer">Voir l’exemple</summary><p style="margin:8px 0 0">${P.modele}</p></details>`); c.append(mod);
+  let getText;
+  if (S.level === 'A1') {
+    const ins = P.lignes.map((l, i) => { const f = $(`<div class="fl"><label>${l}…</label><input placeholder="Je complète" autocomplete="off"></div>`); const inp = f.querySelector('input'); inp.value = (draft.l || [])[i] || ''; inp.oninput = () => { draft.l = ins.map(x => x.value); store.set(dk, draft); }; c.append(f); return inp; });
+    getText = () => P.lignes.map((l, i) => { const v = ins[i].value.trim(); if (!v) return ''; let t = l + ' ' + v; if (!/[.!?]$/.test(t)) t += '.'; return t; }).filter(Boolean).join(' ');
+    getText.ok = () => ins.filter(x => x.value.trim()).length >= Math.min(3, ins.length) ? '' : 'Je complète au moins 3 phrases.';
+  } else {
+    const ta = $(`<textarea rows="8" style="width:100%;font-family:inherit;font-size:19px;line-height:1.5;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--ink)" placeholder="J’écris mon texte ici…"></textarea>`); ta.value = draft.t || '';
+    const cnt = $('<p class="note" style="text-align:right"></p>');
+    const upd = () => { const n = (ta.value.match(/[A-Za-zÀ-ÿ’']+/g) || []).length; cnt.textContent = n + ' mots'; draft.t = ta.value; store.set(dk, draft); };
+    ta.oninput = upd;
+    const ch = $('<div class="chips"></div>'); P.aides.forEach(a => { const b = $(`<button class="chip">${a}</button>`); b.onclick = () => { const st = ta.selectionStart ?? ta.value.length; const before = ta.value.slice(0, st), after = ta.value.slice(ta.selectionEnd ?? st); const ins = (before && !/\s$/.test(before) ? ' ' : '') + a + ' '; ta.value = before + ins + after; ta.focus(); const pos = (before + ins).length; ta.setSelectionRange(pos, pos); upd(); }; ch.append(b); });
+    const f1 = $('<div class="fl"><label>Je peux toucher une aide pour l’ajouter :</label></div>'); f1.append(ch); c.append(f1);
+    c.append(ta, cnt); upd();
+    getText = () => ta.value.trim().replace(/\s+/g, ' ');
+    getText.ok = () => ((ta.value.match(/[A-Za-zÀ-ÿ’']+/g) || []).length >= 20 ? '' : 'J’écris au moins 20 mots (' + P.min + ' phrases).');
+  }
+  const err = $('<p class="err"></p>'), send = $('<button class="btn pri wide">J’envoie à mon formateur</button>');
+  c.append($('<p class="note" style="text-align:left">Attention : après l’envoi, je ne peux plus modifier mon texte.</p>'), err, send);
+  send.onclick = () => {
+    const m = getText.ok(); if (m) { err.textContent = m; return; }
+    const txt = getText();
+    logAnswer('Production écrite : ' + P.consigne, txt, '', null);
+    store.set(dk, {}); c.querySelectorAll('input,textarea,button').forEach(x => x.disabled = true);
+    send.textContent = '✓ Envoyé !';
+    setTimeout(() => prodDone(1, backList), 900);
+  };
+  app.append(c);
+}
+
+// ================= Oral : j'écoute, je réponds au micro (une seule fois), le formateur écoute =================
+let micStream = null, recorder = null;
+function stopMic() { try { if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; recorder.stop(); } } catch (e) {} recorder = null; if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; } }
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => rnd(16).toString(16)));
+const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>';
+function gOral() {
+  if (!store.get('oralOK')) {
+    app.innerHTML = ''; app.append(topbar(S.game, backList));
+    const c = $(`<div class="card narrow form"><p style="margin:0;font-weight:700;font-size:20px">🎙️ Je réponds avec ma voix</p><p style="margin:0;line-height:1.55">J’écoute la question, puis j’appuie sur le micro et je réponds. J’ai <b>un seul essai</b> par question.</p><p style="margin:0;line-height:1.55">Ma voix est enregistrée et envoyée <b>seulement à mon formateur</b>. Les enregistrements sont effacés après 30 jours.</p><p class="note" style="text-align:left">Le téléphone va demander l’autorisation d’utiliser le micro : je touche « Autoriser ».</p><button class="btn pri wide">J’ai compris, je commence</button></div>`);
+    c.querySelector('button').onclick = () => { store.set('oralOK', true); gOral(); }; app.append(c); return;
+  }
+  const qs = ORAL[S.theme][S.level]; const maxS = S.level === 'A1' ? 45 : 90;
+  runSeries(qs, (q, ctx) => {
+    const bub = $(`<div class="bubble"><p>${q}</p></div>`); bub.append(sayBtn(q));
+    const media = $('<div></div>'); media.append($(`<p class="note" style="text-align:left;margin:0 0 8px">${ctx.count}</p>`), bub);
+    const { g, side } = gcard(media, 'J’écoute la question. J’appuie sur le micro et je réponds.');
+    const box = $(`<div class="listen act"><button class="say" aria-label="Enregistrer" style="background:#B42318">${MIC}</button><span class="st">J’appuie pour parler</span></div>`);
+    const btn = box.querySelector('button'), st = box.querySelector('.st'); side.append(box);
+    let chunks = [], t0 = 0, tick = null, state = 'idle';
+    const finish = (mime) => {
+      clearInterval(tick); state = 'sent'; st.textContent = 'Envoi…'; btn.disabled = true;
+      const blob = new Blob(chunks, { type: mime || 'audio/webm' });
+      const fr = new FileReader(); fr.onload = async () => {
+        const data = String(fr.result).split(',')[1] || ''; const id = uuid();
+        const row = { id, eleve: cut(S.name, 40), session_id: S.session, theme: S.theme, question: cut(q, 300), mime: (blob.type || 'audio/webm').slice(0, 60), data };
+        let ok = false; try { const r = await fetch(`${SB_URL}/dds_audio`, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(row) }); ok = r.ok; } catch (e) {}
+        if (!ok) { queue.audio.push(row); store.set('queue', queue); }
+        ctx.answer(null, { q: 'Oral : ' + q, r: 'audio:' + id, a: '', right: ok ? 'Ton formateur va écouter ta réponse.' : 'Pas de réseau : ta réponse partira plus tard.' });
+      }; fr.readAsDataURL(blob);
+    };
+    btn.onclick = async () => {
+      if (state === 'idle') {
+        try { speechSynthesis.cancel(); } catch (e) {}
+        try { if (!micStream) micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+        catch (e) { st.innerHTML = 'Le micro est bloqué. J’autorise le micro dans le navigateur (le petit cadenas en haut), puis je recommence.'; const sk = $('<button class="btn">Passer cette question</button>'); sk.onclick = () => ctx.answer(null, { q: 'Oral : ' + q, r: '(micro non autorisé)', a: '', right: 'Question passée.' }); box.append(sk); return; }
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+        const mt = (window.MediaRecorder && types.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t))) || '';
+        try { recorder = new MediaRecorder(micStream, mt ? { mimeType: mt, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 }); } catch (e) { recorder = new MediaRecorder(micStream); }
+        chunks = []; recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = () => finish(recorder && recorder.mimeType);
+        recorder.start(1000); state = 'rec'; t0 = Date.now(); btn.style.background = '#1B1F33'; btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+        const upd = () => { const s2 = Math.round((Date.now() - t0) / 1000); st.innerHTML = `<b style="color:#B42318">● J’enregistre… ${s2} s</b> · je touche le carré quand j’ai fini`; if (s2 >= maxS) btn.onclick(); };
+        upd(); tick = setInterval(upd, 500);
+      } else if (state === 'rec') { state = 'stopping'; clearInterval(tick); try { recorder.stop(); } catch (e) { finish(); } }
+    };
+    setTimeout(() => speak(q), 300); return g;
+  }, backList);
+}
+
 const PLAY = {
   quiz: gQuiz, ecoute: gEcoute, article: gArticle, ilelle: gIlElle, ordre: (t) => gSyll(t, false), manque: (t) => gSyll(t, true), compte: gCompte, eclair: gEclair,
   qr: gQR, fiche: gFiche, age: gAge,
   cache: gCache, sac: gSac, meles: gMeles, fleches: gFleches, gram: gGram, ou: gOu, nat: gNat, phrase: gPhrase, vf: gVF, lecture: gLecture, lucia: gLucia, moi: gMoi,
+  fiche2: gFiche2, ecrit: gEcrit, oral: gOral,
   s1: () => gSouris('s1'), s2: () => gSouris('s2'), s3: () => gSouris('s3'),
 };
 home();

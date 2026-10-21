@@ -20,7 +20,7 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .btn{border:0;border-radius:10px;padding:9px 14px;font-family:inherit;font-weight:600;background:var(--chip);color:var(--ink);cursor:pointer;font-size:14px}
 .btn.pri{background:var(--blue);color:#fff}.btn.on{background:var(--ink);color:var(--bg)}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
-.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:16px}
 .k{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .k b{display:block;font-size:26px;font-variant-numeric:tabular-nums}.k span{color:var(--muted);font-size:13px}
 .box{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
@@ -34,6 +34,10 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--chip)}
 .bar{width:70px;height:8px;border-radius:99px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--green)}
 .ok{color:var(--green);font-weight:700}.no{color:var(--red);font-weight:700}
 tr.bad td{background:var(--nobg)}
+tr.prod td{background:#FFF6E0}
+.prodtxt{white-space:pre-wrap;min-width:260px;max-width:520px;line-height:1.5}
+.pen{color:#B45309;font-weight:700}
+@media (prefers-color-scheme: dark){tr.prod td{background:#3A3020}}
 .pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:700;background:var(--chip)}
 .a1{background:var(--okbg);color:var(--green)}.a2{background:#DCE7FF;color:#2F5BD3}
 .login{max-width:420px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px}
@@ -43,6 +47,10 @@ tr.bad td{background:var(--nobg)}
 .tools label{display:flex;gap:6px;align-items:center;font-size:14px}
 .stars{color:var(--gold)}
 @media (max-width:760px){.cards{grid-template-columns:1fr 1fr}}
+.prodbox{display:flex;flex-direction:column;gap:10px}
+.pr{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.pr .h{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px}
+.pr .q{color:var(--muted);font-size:14px;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -60,6 +68,13 @@ let CODE = null; try { CODE = sessionStorage.getItem('dds_code'); } catch (e) {}
 let PERIOD = 'today', P = [], R = [], SEL = null, ONLYBAD = false, timer = null;
 const fmt = (d) => new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const since = () => { const d = new Date(); if (PERIOD === 'today') { d.setHours(0, 0, 0, 0); return d; } if (PERIOD === '7') return new Date(Date.now() - 7 * 864e5); if (PERIOD === '30') return new Date(Date.now() - 30 * 864e5); return new Date('2020-01-01'); };
+const isProd = (r) => r.correct === null || r.correct === undefined;
+const content = (r) => String(r.reponse || '').startsWith('audio:') ? `<button class="btn pri" data-audio="${esc(r.reponse.slice(6))}">▶ Écouter</button>` : `<div class="prodtxt">${esc(r.reponse)}</div>`;
+async function playAudio(b) {
+  b.disabled = true; const t = b.textContent; b.textContent = 'Chargement…';
+  try { const j = await rpc('dds_lire_audio', { p_code: CODE, p_id: b.dataset.audio }); if (!j || !j.length) { b.textContent = 'Enregistrement effacé'; return; } const a = new Audio(`data:${j[0].mime};base64,${j[0].data}`); a.onended = () => { b.textContent = t; b.disabled = false; }; await a.play(); b.textContent = '♪ Lecture…'; }
+  catch (e) { b.textContent = 'Lecture impossible'; b.disabled = false; }
+}
 const THEMES = { corps: 'Le corps', transports: 'Les transports', metiers: 'Les métiers', logement: 'Le logement', presentation: 'Se présenter', souris: 'Où est la souris ?' };
 
 async function start() {
@@ -93,29 +108,30 @@ async function load() {
 }
 function render() {
   const by = {};
-  R.forEach(r => { const s = by[r.eleve] || (by[r.eleve] = { eleve: r.eleve, rep: 0, ok: 0, parties: 0, last: r.created_at, stars: 0 }); s.rep++; if (r.correct) s.ok++; if (r.created_at > s.last) s.last = r.created_at; });
-  P.forEach(p => { const s = by[p.eleve] || (by[p.eleve] = { eleve: p.eleve, rep: 0, ok: 0, parties: 0, last: p.created_at, stars: 0 }); s.parties++; s.stars += p.etoiles || 0; if (p.created_at > s.last) s.last = p.created_at; });
+  R.forEach(r => { const s = by[r.eleve] || (by[r.eleve] = { eleve: r.eleve, rep: 0, ok: 0, prod: 0, parties: 0, last: r.created_at, stars: 0 }); if (isProd(r)) s.prod++; else { s.rep++; if (r.correct) s.ok++; } if (r.created_at > s.last) s.last = r.created_at; });
+  P.forEach(p => { const s = by[p.eleve] || (by[p.eleve] = { eleve: p.eleve, rep: 0, ok: 0, prod: 0, parties: 0, last: p.created_at, stars: 0 }); s.parties++; s.stars += p.etoiles || 0; if (p.created_at > s.last) s.last = p.created_at; });
   const list = Object.values(by).sort((a, b) => b.last.localeCompare(a.last));
-  const tot = R.length, ok = R.filter(r => r.correct).length;
+  const G = R.filter(r => !isProd(r)), PR = R.filter(isProd); const tot = G.length, ok = G.filter(r => r.correct).length;
   const per = (n, d) => d ? Math.round(100 * n / d) : 0;
   let h = `<header><div><h1>Tableau de bord · Syllabes et mots</h1><p class="muted" style="margin:4px 0 0">Mise à jour automatique toutes les 30 secondes · dernière : ${new Date().toLocaleTimeString('fr-FR')}</p></div>
     <div class="seg">${[['today', 'Aujourd’hui'], ['7', '7 jours'], ['30', '30 jours'], ['all', 'Tout']].map(([k, l]) => `<button class="btn ${PERIOD === k ? 'on' : ''}" data-p="${k}">${l}</button>`).join('')}<button class="btn" id="rf">Actualiser</button><button class="btn" id="csv">Export CSV</button><button class="btn" id="out">Quitter</button></div></header>
-    <div class="cards"><div class="k"><b>${list.length}</b><span>stagiaires actifs</span></div><div class="k"><b>${P.length}</b><span>parties terminées</span></div><div class="k"><b>${tot}</b><span>réponses</span></div><div class="k"><b>${per(ok, tot)} %</b><span>bonnes réponses</span></div></div>`;
+    <div class="cards"><div class="k"><b>${list.length}</b><span>stagiaires actifs</span></div><div class="k"><b>${P.length}</b><span>parties terminées</span></div><div class="k"><b>${tot}</b><span>réponses</span></div><div class="k"><b>${per(ok, tot)} %</b><span>bonnes réponses</span></div><div class="k"><b>${PR.length}</b><span>productions (écrit / oral)</span></div></div>`;
   if (!SEL) {
-    h += `<h2>Les stagiaires</h2><div class="box scroll"><table><tr><th>Prénom</th><th>Dernière activité</th><th>Parties</th><th>Réponses</th><th>Réussite</th><th>Étoiles (moy.)</th></tr>` +
-      (list.length ? list.map(s => `<tr class="click" data-e="${esc(s.eleve)}"><td><b>${esc(s.eleve)}</b></td><td>${fmt(s.last)}</td><td>${s.parties}</td><td>${s.rep}</td><td><span class="pct"><span class="bar"><i style="width:${per(s.ok, s.rep)}%"></i></span>${per(s.ok, s.rep)} %</span></td><td class="stars">${s.parties ? (s.stars / s.parties).toFixed(1) + ' ★' : '–'}</td></tr>`).join('') : `<tr><td colspan="6" class="muted">Pas encore de réponse sur cette période. Les réponses arrivent dès qu’un stagiaire joue.</td></tr>`) + `</table></div>`;
-    const hard = {}; R.forEach(r => { const k = r.question; const x = hard[k] || (hard[k] = { q: k, jeu: r.jeu, n: 0, bad: 0 }); x.n++; if (!r.correct) x.bad++; });
+    h += `<h2>Les stagiaires</h2><div class="box scroll"><table><tr><th>Prénom</th><th>Dernière activité</th><th>Parties</th><th>Réponses</th><th>Réussite</th><th>Productions</th><th>Étoiles (moy.)</th></tr>` +
+      (list.length ? list.map(s => `<tr class="click" data-e="${esc(s.eleve)}"><td><b>${esc(s.eleve)}</b></td><td>${fmt(s.last)}</td><td>${s.parties}</td><td>${s.rep}</td><td><span class="pct"><span class="bar"><i style="width:${per(s.ok, s.rep)}%"></i></span>${per(s.ok, s.rep)} %</span></td><td>${s.prod ? `<span class="pen">✎ ${s.prod}</span>` : '–'}</td><td class="stars">${s.parties ? (s.stars / s.parties).toFixed(1) + ' ★' : '–'}</td></tr>`).join('') : `<tr><td colspan="7" class="muted">Pas encore de réponse sur cette période. Les réponses arrivent dès qu’un stagiaire joue.</td></tr>`) + `</table></div>`;
+    const hard = {}; G.forEach(r => { const k = r.question; const x = hard[k] || (hard[k] = { q: k, jeu: r.jeu, n: 0, bad: 0 }); x.n++; if (!r.correct) x.bad++; });
     const H = Object.values(hard).filter(x => x.bad).sort((a, b) => b.bad - a.bad).slice(0, 12);
+    h += `<h2>Productions à lire et à écouter</h2><div class="prodbox">` + (PR.length ? PR.slice(0, 30).map(r => `<div class="pr"><div class="h"><b>${esc(r.eleve)}</b><span class="muted">${fmt(r.created_at)}</span><span class="pill ${String(r.niveau).toLowerCase()}">${esc(r.niveau)}</span><span class="muted">${esc(THEMES[r.theme] || r.theme)} · ${esc(r.jeu)}</span></div><div class="q">${esc(r.question)}</div>${content(r)}</div>`).join('') : '<p class="muted">Pas encore de production écrite ou orale sur cette période.</p>') + `</div>`;
     h += `<h2>Ce qui est difficile pour le groupe</h2><div class="box scroll"><table><tr><th>Question</th><th>Jeu</th><th>Erreurs</th><th>Réponses</th></tr>` +
       (H.length ? H.map(x => `<tr><td class="wrap">${esc(x.q)}</td><td>${esc(x.jeu)}</td><td class="no">${x.bad}</td><td>${x.n}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">Aucune erreur pour l’instant.</td></tr>') + `</table></div>`;
   } else {
-    const myP = P.filter(p => p.eleve === SEL), myR = R.filter(r => r.eleve === SEL && (!ONLYBAD || !r.correct));
+    const myP = P.filter(p => p.eleve === SEL), myR = R.filter(r => r.eleve === SEL && (!ONLYBAD || r.correct === false));
     h += `<div class="tools"><button class="btn" id="bk">‹ Tous les stagiaires</button><h2 style="margin:0 8px">${esc(SEL)}</h2><button class="btn" id="rn">Renommer / fusionner</button></div>
       <h2>Parties</h2><div class="box scroll"><table><tr><th>Date</th><th>Niveau</th><th>Thème</th><th>Jeu</th><th>Score</th><th>Erreurs</th><th>Étoiles</th><th>Durée</th></tr>` +
       (myP.length ? myP.map(p => `<tr><td>${fmt(p.created_at)}</td><td><span class="pill ${String(p.niveau).toLowerCase()}">${esc(p.niveau)}</span></td><td>${esc(THEMES[p.theme] || p.theme)}</td><td>${esc(p.jeu)}</td><td>${p.score} / ${p.total}</td><td>${p.erreurs}</td><td class="stars">${'★'.repeat(p.etoiles || 0)}</td><td>${Math.floor(p.duree_s / 60)} min ${p.duree_s % 60} s</td></tr>`).join('') : '<tr><td colspan="8" class="muted">Pas de partie terminée sur cette période.</td></tr>') + `</table></div>
       <div class="tools"><h2 style="margin:0">Réponses une par une</h2><label><input type="checkbox" id="ob" ${ONLYBAD ? 'checked' : ''}> seulement les erreurs</label></div>
       <div class="box scroll"><table><tr><th>Heure</th><th>Jeu</th><th>Question</th><th>Sa réponse</th><th>Bonne réponse</th><th></th></tr>` +
-      (myR.length ? myR.map(r => `<tr class="${r.correct ? '' : 'bad'}"><td>${fmt(r.created_at)}</td><td>${esc(r.jeu)}</td><td class="wrap">${esc(r.question)}</td><td>${esc(r.reponse)}</td><td>${esc(r.attendu)}</td><td class="${r.correct ? 'ok' : 'no'}">${r.correct ? '✓' : '✗'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">Rien à afficher.</td></tr>') + `</table></div>`;
+      (myR.length ? myR.map(r => isProd(r) ? `<tr class="prod"><td>${fmt(r.created_at)}</td><td>${esc(r.jeu)}</td><td class="wrap">${esc(r.question)}</td><td colspan="2">${content(r)}</td><td class="pen" title="à corriger">✎</td></tr>` : `<tr class="${r.correct ? '' : 'bad'}"><td>${fmt(r.created_at)}</td><td>${esc(r.jeu)}</td><td class="wrap">${esc(r.question)}</td><td>${esc(r.reponse)}</td><td>${esc(r.attendu)}</td><td class="${r.correct ? 'ok' : 'no'}">${r.correct ? '✓' : '✗'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">Rien à afficher.</td></tr>') + `</table></div>`;
   }
   root.innerHTML = h;
   root.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { PERIOD = b.dataset.p; load(); });
@@ -123,10 +139,11 @@ function render() {
   document.getElementById('rf').onclick = load;
   document.getElementById('out').onclick = () => { try { sessionStorage.removeItem('dds_code'); } catch (e) {} CODE = null; clearTimeout(timer); start(); };
   document.getElementById('csv').onclick = () => {
-    const rows = [['date', 'eleve', 'niveau', 'theme', 'jeu', 'question', 'reponse', 'attendu', 'correct']].concat(R.map(r => [r.created_at, r.eleve, r.niveau, r.theme, r.jeu, r.question, r.reponse, r.attendu, r.correct ? 'oui' : 'non']));
+    const rows = [['date', 'eleve', 'niveau', 'theme', 'jeu', 'question', 'reponse', 'attendu', 'correct']].concat(R.map(r => [r.created_at, r.eleve, r.niveau, r.theme, r.jeu, r.question, r.reponse, r.attendu, isProd(r) ? 'production' : r.correct ? 'oui' : 'non']));
     const csv = '﻿' + rows.map(r => r.map(x => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'resultats-dds.csv'; a.click();
   };
+  root.querySelectorAll('[data-audio]').forEach(b => b.onclick = () => playAudio(b));
   const bk = document.getElementById('bk'); if (bk) bk.onclick = () => { SEL = null; render(); };
   const ob = document.getElementById('ob'); if (ob) ob.onchange = () => { ONLYBAD = ob.checked; render(); };
   const rn = document.getElementById('rn'); if (rn) rn.onclick = async () => {

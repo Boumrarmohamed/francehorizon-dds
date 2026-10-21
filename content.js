@@ -233,3 +233,57 @@ window.NATS = [
   { m: 'français', f: 'française', p: 'de France' },
 ];
 window.LANGUES = ['français', 'arabe', 'anglais', 'espagnol', 'portugais', 'turc', 'russe', 'ukrainien', 'roumain', 'tamoul', 'bengali', 'ourdou', 'hindi', 'pachto', 'dari', 'persan', 'kurde', 'tigrigna', 'amharique', 'somali', 'soninké', 'wolof', 'peul', 'bambara', 'lingala', 'berbère', 'albanais', 'géorgien', 'chinois', 'vietnamien', 'créole'];
+
+// ---------- Production écrite (le formateur corrige) ----------
+// A1 : des débuts de phrases à compléter. A2 : un petit texte libre avec un modèle et des aides.
+window.PROD = {
+  corps: {
+    A1: { consigne: 'Tu es malade. Tu écris un message à ton formateur.', modele: 'Bonjour, je suis malade. J’ai mal à la tête. J’ai de la fièvre. Je vais chez le médecin.',
+      lignes: ['Bonjour, je suis', 'J’ai mal', 'J’ai', 'Je vais chez'] },
+    A2: { consigne: 'Tu es malade et tu ne viens pas en formation. Écris un message à ton formateur : où tu as mal, ce que dit le médecin, quand tu reviens.', min: 4,
+      modele: 'Bonjour Monsieur, je ne viens pas en formation aujourd’hui. Je suis malade : j’ai mal à la gorge et j’ai de la fièvre. J’ai rendez-vous chez le médecin à 11 heures. Je reviens jeudi. Cordialement, Fatou.',
+      aides: ['Bonjour Monsieur,', 'Bonjour Madame,', 'je ne viens pas en formation', 'Je suis malade.', 'J’ai mal', 'J’ai de la fièvre.', 'J’ai rendez-vous chez le médecin', 'Je reviens', 'Cordialement,'] },
+  },
+  transports: {
+    A1: { consigne: 'Comment tu viens en formation ?', modele: 'Je viens en formation en bus. Je prends le bus 95. Le trajet dure 20 minutes.',
+      lignes: ['Je viens en formation', 'Je prends', 'Le trajet dure', 'Le samedi, je vais au marché'] },
+    A2: { consigne: 'Raconte ton trajet pour venir en formation : les transports, les heures, la durée, ce que tu aimes ou pas.', min: 4,
+      modele: 'Le matin, je pars de chez moi à 8 heures. Je vais à l’arrêt de bus à pied. Je prends le bus, puis le train. Le trajet dure 45 minutes. Je n’aime pas le train quand il y a beaucoup de monde.',
+      aides: ['Le matin, je pars à', 'Je vais à l’arrêt à pied.', 'Je prends le bus', 'puis', 'Le trajet dure', 'J’aime', 'Je n’aime pas', 'parce que'] },
+  },
+  metiers: {
+    A1: { consigne: 'Ton métier. Je complète.', modele: 'Dans mon pays, j’étais cuisinier. Je travaillais dans un restaurant. En France, je voudrais être cuisinier.',
+      lignes: ['Dans mon pays, j’étais', 'Je travaillais', 'En France, je voudrais être', 'J’aime'] },
+    A2: { consigne: 'Présente un métier que tu connais : où la personne travaille, ce qu’elle fait, les horaires, ce que tu aimes dans ce métier.', min: 4,
+      modele: 'Je présente le métier d’aide-soignante. Elle travaille à l’hôpital ou dans une maison de retraite. Elle aide les malades à manger et à se laver. Elle travaille le jour ou la nuit. J’aime ce métier parce qu’on aide les gens.',
+      aides: ['Je présente le métier de', 'Il travaille', 'Elle travaille', 'à l’hôpital', 'au restaurant', 'Il / Elle commence à', 'et finit à', 'J’aime ce métier parce que'] },
+  },
+  logement: {
+    A1: { consigne: 'Ton logement. Je complète.', modele: 'J’habite à Cergy. J’habite dans un appartement. Il y a deux pièces. Dans ma chambre, il y a un lit et une armoire. Il n’y a pas de baignoire.',
+      lignes: ['J’habite à', 'J’habite dans', 'Il y a', 'Dans ma chambre, il y a', 'Il n’y a pas de'] },
+    A2: { consigne: 'Décris ton logement, comme Fatou : où tu habites, combien de pièces, les meubles, ce qu’il y a et ce qu’il n’y a pas, où sont les choses.', min: 5,
+      modele: 'J’habite à Pontoise dans un petit appartement au 2e étage. Il y a un salon, une chambre, une cuisine et une salle de bain. Dans le salon, il y a un canapé et une table. La télé est sur un meuble. Il n’y a pas de baignoire, il y a une douche.',
+      aides: ['J’habite à', 'dans un appartement', 'au … étage', 'Il y a', 'Dans le salon,', 'Dans la cuisine,', 'Il n’y a pas de', 'est sur', 'est à côté de'] },
+  },
+  presentation: {
+    A1: { consigne: 'Je me présente. Je complète.', modele: 'Je m’appelle Karim. J’ai 30 ans. Je suis algérien. J’habite à Pontoise. Je parle arabe et français.',
+      lignes: ['Je m’appelle', 'J’ai', 'Je suis', 'J’habite à', 'Je parle'] },
+    A2: { consigne: 'Tu arrives dans un nouveau groupe. Écris ta présentation : nom, âge, pays, ville, famille, langues, travail, ce que tu aimes.', min: 5,
+      modele: 'Bonjour à tous ! Je m’appelle Lucia, j’ai 41 ans. Je viens du Brésil et j’habite à Osny avec mon mari et ma fille. Je parle portugais et espagnol. Au Brésil, j’étais infirmière. J’aime cuisiner et marcher au parc.',
+      aides: ['Bonjour à tous !', 'Je m’appelle', 'J’ai … ans.', 'Je viens', 'J’habite à', 'avec', 'Je parle', 'Je suis', 'Dans mon pays, j’étais', 'J’aime'] },
+  },
+};
+
+// ---------- Oral : le stagiaire entend et lit la question, il répond au micro (le formateur écoute) ----------
+window.ORAL = {
+  corps: { A1: ['Où as-tu mal ?', 'Tu es malade ?', 'Tu vas chez le médecin ?', 'Tu as de la fièvre ?'],
+    A2: ['Tu téléphones au cabinet médical pour prendre rendez-vous. Qu’est-ce que tu dis ?', 'Explique au médecin où tu as mal et depuis quand.', 'Tu es malade : tu préviens ton formateur au téléphone.'] },
+  transports: { A1: ['Comment tu viens en formation ?', 'Tu prends le bus ?', 'Tu as une voiture ?', 'Le trajet dure combien de temps ?'],
+    A2: ['Raconte ton trajet du matin.', 'Quel transport tu préfères ? Pourquoi ?', 'Tu es à la gare. Tu demandes à quelle heure part le train pour Paris.'] },
+  metiers: { A1: ['Quel est ton métier ?', 'Tu travailles ?', 'Quel métier tu aimes ?', 'Où travaille le boulanger ?'],
+    A2: ['Parle de ton travail dans ton pays.', 'Quel travail tu cherches en France ? Pourquoi ?', 'Présente un métier : où, quoi, les horaires.'] },
+  logement: { A1: ['Tu habites où ?', 'Tu habites dans un appartement ou dans une maison ?', 'Il y a combien de pièces chez toi ?', 'Qu’est-ce qu’il y a dans ta chambre ?'],
+    A2: ['Décris ton logement.', 'Où sont les meubles dans ton salon ?', 'Il y a un problème chez toi : la douche ne marche pas. Tu téléphones au propriétaire.'] },
+  presentation: { A1: ['Comment tu t’appelles ?', 'Tu as quel âge ?', 'Tu es de quelle nationalité ?', 'Tu habites où ?', 'Tu parles quelles langues ?', 'Tu as des enfants ?'],
+    A2: ['Présente-toi.', 'Présente ta famille.', 'Parle de ton pays.', 'Pourquoi tu apprends le français ?'] },
+};
